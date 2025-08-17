@@ -3,15 +3,16 @@ name: Build & Push Docker image to ECR
 
 on:
   push:
-    branches: ["main"]          # change if you want another branch
-  workflow_dispatch:            # allow manual runs from Actions tab
+    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  ECR_REPOSITORY: aws-ha-app    # your ECR repo name
-  DOCKER_CONTEXT: ./app         # folder that contains your Dockerfile
+  ECR_REPOSITORY: aws-ha-app
+  BUILD_CONTEXT: ./app             # <- was DOCKER_CONTEXT (reserved)
+  DOCKERFILE_PATH: ./app/Dockerfile
 
 jobs:
   build-and-push:
@@ -44,14 +45,12 @@ jobs:
           IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
           LATEST_URI="$REGISTRY/$ECR_REPOSITORY:latest"
 
-          echo "Building $IMAGE_URI"
           docker build \
             -t "$IMAGE_URI" \
             -t "$LATEST_URI" \
-            -f "$DOCKER_CONTEXT/Dockerfile" \
-            "$DOCKER_CONTEXT"
+            -f "$DOCKERFILE_PATH" \
+            "$BUILD_CONTEXT"
 
-          echo "Pushing images to ECR"
           docker push "$IMAGE_URI"
           docker push "$LATEST_URI"
 
