@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  app:
+    build: ../app
+    image: aws-ha-app:local
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=localhost
+      - DB_NAME=appdb
+      - DB_USER=appuser
+      - DB_PASS=password

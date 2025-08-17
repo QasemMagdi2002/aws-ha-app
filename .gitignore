@@ -1,0 +1,14 @@
+
+## .gitignore
+```gitignore
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.vscode/
+.idea/
+# Docker / test
+*.log
+.pytest_cache/
+# Local helpers
+local/data/
