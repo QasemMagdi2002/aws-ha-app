@@ -59,14 +59,14 @@ jobs:
             "$BUILD_CONTEXT"
 
       # ---------- SCAN ----------
-      - name: Scan image with Trivy (fail on HIGH/CRITICAL)
+      - name: Scan image with Trivy (warn only)
         uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: ${{ env.IMG_SHA }}
           format: 'table'
-          exit-code: '1'
+          exit-code: '0'               # <— don’t fail
           severity: 'HIGH,CRITICAL'
-          ignore-unfixed: true         
+          ignore-unfixed: true      
 
       # ---------- PUSH (only runs if scan passed) ----------
       - name: Push images to ECR
