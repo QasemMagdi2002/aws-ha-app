@@ -1,5 +1,5 @@
 # .github/workflows/ecr-push.yml
-name: Build & Push Docker image to ECR
+name: Build, Scan & Push Docker image to ECR
 
 on:
   push:
@@ -11,11 +11,11 @@ permissions:
 
 env:
   ECR_REPOSITORY: aws-ha-app
-  BUILD_CONTEXT: ./app             # <- was DOCKER_CONTEXT (reserved)
+  BUILD_CONTEXT: ./app
   DOCKERFILE_PATH: ./app/Dockerfile
 
 jobs:
-  build-and-push:
+  build-scan-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,9 +25,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          aws-region: ${{ secrets.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Ensure ECR repository exists
         run: |
@@ -38,23 +38,43 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image
+      # ---------- BUILD (no push yet) ----------
+      - name: Build image (local)
         run: |
-          REGISTRY="${{ steps.ecr.outputs.registry }}"
-          SHA_TAG="${GITHUB_SHA::7}"
-          IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
-          LATEST_URI="$REGISTRY/$ECR_REPOSITORY:latest"
+          REG="${{ steps.ecr.outputs.registry }}"
+          REPO="${{ env.ECR_REPOSITORY }}"
+          SHA="${GITHUB_SHA::7}"
+          BRANCH="${GITHUB_REF_NAME//\//-}"
+          DATE_TAG="$(date +%Y%m%d-%H%M)"
+
+          echo "REG=$REG" >> $GITHUB_ENV
+          echo "SHA_TAG=$SHA" >> $GITHUB_ENV
+          echo "IMG_SHA=$REG/$REPO:$SHA" >> $GITHUB_ENV
+          echo "IMG_LATEST=$REG/$REPO:latest" >> $GITHUB_ENV
 
           docker build \
-            -t "$IMAGE_URI" \
-            -t "$LATEST_URI" \
+            -t "$REG/$REPO:$SHA" \
+            -t "$REG/$REPO:latest" \
             -f "$DOCKERFILE_PATH" \
             "$BUILD_CONTEXT"
 
-          docker push "$IMAGE_URI"
-          docker push "$LATEST_URI"
+      # ---------- SCAN ----------
+      - name: Scan image with Trivy (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.IMG_SHA }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true         
+
+      # ---------- PUSH (only runs if scan passed) ----------
+      - name: Push images to ECR
+        run: |
+          docker push "${{ env.IMG_SHA }}"
+          docker push "${{ env.IMG_LATEST }}"
 
       - name: Output image URIs
         run: |
-          echo "${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY:${GITHUB_SHA::7}"
-          echo "${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY:latest"
+          echo "${{ env.IMG_SHA }}"
+          echo "${{ env.IMG_LATEST }}"
