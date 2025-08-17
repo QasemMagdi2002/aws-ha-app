@@ -1,60 +1,59 @@
 # AWS Cloud Infrastructure Project – Secure & Scalable Web App
 
-This project demonstrates a **production-grade AWS architecture** with compute, storage, networking, monitoring, and DevSecOps practices. It was built to simulate a real-world cloud deployment with **scalability, security, and cost optimization** in mind.
+This project demonstrates a **production-grade AWS architecture** with compute, storage, networking, CI/CD, monitoring, and DevSecOps practices.  
+It was built to simulate a real-world cloud deployment with **scalability, security, and automation** in mind.
 
 ---
 
 ## 🏗️ Architecture Diagram
 
-```mermaid
-graph TD
-  User[User Request] --> WAF[AWS WAF] --> ALB[Application Load Balancer]
-  ALB --> EC2[EC2 Auto Scaling Group]
-  EC2 --> S3[(S3 Bucket)]
-  EC2 -->|fetch images| ECR[(Elastic Container Registry)]
-  ECR --> Trivy[Trivy Vulnerability Scan]
+![AWS Architecture](AWS%20Architecture%20Diagram.png)
 
-  EC2 --> SQS[SQS Queue] --> Lambda[Lambda Consumer]
-  Lambda --> DynamoDB[(DynamoDB Table)]
-
-  SSM[SSM Parameter Store] --> EC2
-  Secrets[Secrets Manager] --> EC2
-
-  CloudWatch[CloudWatch Logs & Alarms] --> EC2
-  CloudWatch --> Lambda
-  CloudWatch --> WAF
-```
-
+---
 
 ## 🔑 Key Features
 
 ### Networking & Compute
-- VPC with public/private subnets, NAT Gateway, and Security Groups.  
-- **EC2 Auto Scaling Group** behind an Application Load Balancer (ALB).  
-- Private subnet isolation for sensitive resources.  
-
-### Serverless Processing
-- **SQS queue + Lambda consumer** → processes events and stores results in DynamoDB.  
+- **VPC** with public/private subnets, NAT Gateways, and Security Groups.  
+- **Application Load Balancer (ALB)** protected by AWS WAF.  
+- **EC2 Auto Scaling Group** spread across multiple AZs for high availability.  
+- Private subnets isolate application servers and databases.  
 
 ### Storage & Data
-- **Amazon S3** for static storage, logging, and lifecycle policies (to Glacier/IA).  
-- **DynamoDB** for low-latency, scalable database operations.  
+- **Amazon RDS (Multi-AZ)** with synchronous replication (Primary & Standby).  
+- **Amazon DynamoDB** for low-latency, event-driven storage.  
+
+### Event-Driven & Serverless Processing
+- **Amazon SQS** queue for decoupling workloads.  
+- **AWS Lambda** consumer triggered by SQS to process tasks.  
+- Lambda writes results into **DynamoDB**.  
 
 ### Security & DevSecOps
 - **AWS WAF** in front of ALB for SQLi/XSS filtering and rate limiting.  
-- **Amazon ECR** for container images with lifecycle policies.  
-- **Trivy** scans for Docker images before pushing to ECR.  
-- **AWS Secrets Manager** for database/application secrets.  
-- **AWS SSM Parameter Store** for non-sensitive config parameters.  
-- IAM roles with least privilege access.  
+- **AWS Secrets Manager** for secure management of database and application credentials.  
+- **Security Groups** enforce least-privilege:
+  - ALB-SG: allows inbound 80/443 from the internet, forwards to EC2-SG.  
+  - EC2-SG: allows inbound only from ALB-SG, outbound to DB-SG.  
+  - DB-SG: allows inbound only from EC2-SG on DB port (3306/5432).  
+- IAM roles with least-privilege policies.  
+- **Amazon ECR** with lifecycle policies for container image storage.  
+- **Trivy scans** for Docker image vulnerability detection during CI/CD.  
+
+### CI/CD Pipeline
+- **GitHub Actions** builds and pushes Docker images to **Amazon ECR**.  
+- **Trivy** scan runs on each build before pushing.  
+- **Auto Scaling Group refresh** ensures new EC2 instances pull the latest image from ECR automatically.  
 
 ### Monitoring & Logging
-- **CloudWatch Logs** and **CloudWatch Alarms** for EC2, Lambda, and WAF.  
-- **S3 bucket access logs** with lifecycle retention policies.  
-- Infrastructure logging for auditing and troubleshooting.  
+- **Amazon CloudWatch Logs & Alarms** integrated with EC2, ALB, WAF, and Lambda.  
+- Monitors system metrics, application logs, and queue depth.  
+- Alarms trigger notifications for failures or high utilization.  
 
 ---
 
 ## ⚙️ Tools & Technologies
-- **AWS Services**: EC2 • ALB/ASG • VPC • S3 • DynamoDB • Lambda • SQS • ECR • WAF • Secrets Manager • SSM • CloudWatch  
-- **DevOps Tools**: Docker • Trivy • Bash • Terraform (optional for IaC)  
+
+- **AWS Services**: VPC • NAT Gateway • ALB/ASG • EC2 • RDS (Multi-AZ) • DynamoDB • SQS • Lambda • ECR • WAF • Secrets Manager • CloudWatch  
+- **DevOps Tools**: Docker • GitHub Actions • Trivy • Bash • Terraform (optional for IaC)  
+
+---
