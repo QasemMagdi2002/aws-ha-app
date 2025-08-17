@@ -1,0 +1,61 @@
+# .github/workflows/ecr-push.yml
+name: Build & Push Docker image to ECR
+
+on:
+  push:
+    branches: ["main"]          # change if you want another branch
+  workflow_dispatch:            # allow manual runs from Actions tab
+
+permissions:
+  contents: read
+
+env:
+  ECR_REPOSITORY: aws-ha-app    # your ECR repo name
+  DOCKER_CONTEXT: ./app         # folder that contains your Dockerfile
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" \
+          || aws ecr create-repository --repository-name "$ECR_REPOSITORY"
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        run: |
+          REGISTRY="${{ steps.ecr.outputs.registry }}"
+          SHA_TAG="${GITHUB_SHA::7}"
+          IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
+          LATEST_URI="$REGISTRY/$ECR_REPOSITORY:latest"
+
+          echo "Building $IMAGE_URI"
+          docker build \
+            -t "$IMAGE_URI" \
+            -t "$LATEST_URI" \
+            -f "$DOCKER_CONTEXT/Dockerfile" \
+            "$DOCKER_CONTEXT"
+
+          echo "Pushing images to ECR"
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+
+      - name: Output image URIs
+        run: |
+          echo "${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY:${GITHUB_SHA::7}"
+          echo "${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY:latest"
